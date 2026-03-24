@@ -1,1 +1,16 @@
+$proc_path = 'C:\Games\GameSession\GameSession.exe'
+$proc_name = 'GameSession.exe'
+$ttw = 10000
+$logs = 'C:\Logs\session\monitor.log"
+$logDir = Split-Path $log
 
+function Get-Timestamp {
+    Get-Date -Format "yyyy-mm-dd HH:mm:ss"
+}
+
+#guarded log entry, make sure file exists before writing
+if (-not(Test-Path $log)){
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+
+#Check is 
