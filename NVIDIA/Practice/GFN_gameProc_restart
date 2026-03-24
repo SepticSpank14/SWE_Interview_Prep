@@ -30,7 +30,6 @@ while ($true){
         $running_proc = Get-Process -Name $proc_name -ErrorAction SilentlyContinue
         if ($running_proc.count -gt 0){
             Add-Content $Logs "$(Get-Timestamp) PASS: $proc_name restarted successfully. PID: $($running_proc.Id)"
-            $results = 0
         }
         elseif ($running_proc.count -eq 0 -and $results -eq 1){
             Add-Content $Logs "$(Get-Timestamp) CRITICAL FAILURE: $proc_name failed to start. Terminating program."
