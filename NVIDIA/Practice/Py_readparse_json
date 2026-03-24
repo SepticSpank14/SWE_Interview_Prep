@@ -1,0 +1,97 @@
+import pandas as pd
+import json
+import os
+from datetime import datetime
+
+fileLoc = r'C:\Data\publisher_catalog.json'
+valRecords = r'C:\Data\validate_catalog.csv'
+log_file_path = r'C:\Logs\catalog_validation.log'
+required_fields = ['game_id', 'game_title', 'build_version', 'platform', 'status']
+
+def timestamp():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# create the log file directory if it doesn't exist and create a logging function, "log"
+os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+def log(message, log_file_path):
+    with open (log_file_path, "a") as f:
+        f.write(f"[{timestamp()}] {message}\n")
+
+# Reads a JSON file at C:\Data\publisher_catalog.json
+record = []
+valid_records = []
+
+with open(fileLoc, 'r') as file:
+    jData = json.load(file)
+
+for record_item in jData:          # loop over each record
+    is_valid = True
+    reasons = []      
+
+# check for falsy in it's own block...
+    # check all fields present and non-empty
+    for field in required_fields:
+        if field not in record_item or not record_item[field]:
+            is_valid = False
+            reasons.append(f"Missing or empty field: {field}")
+
+    # for field in required_fields: # then check each field 
+    #     if field not in record_item or not record_item[field]:
+    #         is_valid = False
+    #         log(f"{timestamp()} Error: {field} is not present in file.", log_file_path)
+    #         reasons.append(f"Missing or empty field: {field}")
+    #         record.append(False)
+
+#... then check truthy later! Look for what itsn't over what is
+    # check platform
+    if record_item.get("platform") not in ["windows", "linux", "mac"]:
+        is_valid = False
+        reasons.append(f"Invalid platform: {record_item.get('platform')}")
+
+    # check status
+    if record_item.get("status") not in ["active", "inactive"]:
+        is_valid = False
+        reasons.append(f"Invalid status: {record_item.get('status')}")
+
+    if is_valid:
+        valid_records.append(record_item)
+        record.append("Valid")
+    else:
+        for reason in reasons:
+            log(f"Invalid record '{record_item.get('game_id')}': {reason}", log_file_path)
+        record.append("Invalid")
+
+    # if record_item.get("platform") not in ['windows', 'linux', 'mac']:
+    #     if record_item.get("status") == "active" or record_item.get("status") == "inactive":
+    #         valid_records.append(record_item)
+    #         record.append('Valid')
+    #     else:
+    #         log(f"{timestamp()} Error: {field['status']} does not contain the required parameters", log_file_path)
+    #         record.append('Invalid')
+    # else:
+    #     log(f"{timestamp()} Error: {field['platform']} does not contain the required parameters", log_file_path)
+    #     record.append('Invalid')
+
+jData_df = pd.DataFrame(valid_records) 
+jData_df.to_csv(valRecords, index=False)
+
+total = len(record)
+valid = record.count("Valid")
+invalid = record.count("Invalid")
+
+summary = f"{timestamp()} - SUMMARY: Total records - {total} | Valid Records - {valid} | Invalid Records - {invalid}"
+log(summary, log_file_path)
+print(summary)
+
+      
+
+# Each record in the JSON has these fields: 
+    #game_id, game_title, build_version, platform and status
+# Validates each record — 
+    # a valid record must have all five fields present and non-empty, 
+    # platform must be one of ["windows", "linux", "mac"], and 
+    #status must be either "active" or "inactive"
+# Writes valid records to C:\Data\validated_catalog.csv
+# Logs each invalid record with the reason it failed validation 
+#and a timestamp to C:\Logs\catalog_validation.log
+# Prints a summary — total records, valid count, invalid count
