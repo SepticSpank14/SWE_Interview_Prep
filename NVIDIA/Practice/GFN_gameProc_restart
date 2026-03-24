@@ -9,27 +9,37 @@ function Get-Timestamp {
 }
 
 #guarded log entry, make sure file exists before writing
-if (-not(Test-Path $log)){
+if (-not(Test-Path $Logs)){
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
 
 #Check if proc_name is running, restart if not
-$running_proc = Get_Process -Name $proc_name -ErrorAction SilentlyContinue
-$results = 0
 
 while ($true){
+    $results = 0
+    $running_proc = Get-Process -Name $proc_name -ErrorAction SilentlyContinue
+    
     if ($running_proc.count -eq 0){
-        Add-Content $log "$(Get-Timestamp) $proc_name is not running. Attempting restart."
+        Add-Content $Logs "$(Get-Timestamp) $proc_name is not running. Attempting restart."
         Start-Process -FilePath $proc_path
         $results += 1
-        if ($results -eq 2){
-            Add-Content $log "$(Get_Timestamp) CRITICAL FAILURE: $proc_name failed to start. Terminating program."
+        if ($results -eq 1){
+            Add-Content $Logs "$(Get-Timestamp) CRITICAL FAILURE: $proc_name failed to start. Terminating program."
             exit 1
         }
     }
-    elseif ($running_proc.count -gt 0){
-        Add-Content $log "$(Get-Timestamp) $proc_name is running. PID: ($proc_name).Id"  
-    }
+    
+    Start-Process -FilePath $proc_path
     Start-Sleep -Seconds $ttw
+    
+    if ($running_proc.count -gt 0){
+        Add-Content $Logs "$(Get-Timestamp) $proc_name is running. PID: $($running_proc.Id)"  
+        #don't forget to reset the results
+        $results = 0
+    } else {
+        $results += 1
+    }
+
+
 }
 
