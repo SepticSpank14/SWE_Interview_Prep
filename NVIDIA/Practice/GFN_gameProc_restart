@@ -1,7 +1,7 @@
 $proc_path = 'C:\Games\GameSession\GameSession.exe'
 $proc_name = 'GameSession.exe'
-$ttw = 10000
-$logs = 'C:\Logs\session\monitor.log"
+$ttw = 10
+$logs = 'C:\Logs\session\monitor.log'
 $logDir = Split-Path $log
 
 function Get-Timestamp {
@@ -13,4 +13,23 @@ if (-not(Test-Path $log)){
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
 
-#Check is 
+#Check if proc_name is running, restart if not
+$running_proc = Get_Process -Name $proc_name -ErrorAction SilentlyContinue
+$results = 0
+
+while ($true){
+    if ($running_proc.count -eq 0){
+        Add-Content $log "$(Get-Timestamp) $proc_name is not running. Attempting restart."
+        Start-Process -FilePath $proc_path
+        $results += 1
+        if ($results -eq 2){
+            Add-Content $log "$(Get_Timestamp) CRITICAL FAILURE: $proc_name failed to start. Terminating program."
+            exit 1
+        }
+    }
+    elseif ($running_proc.count -gt 0){
+        Add-Content $log "$(Get-Timestamp) $proc_name is running. PID: ($proc_name).Id"  
+    }
+    Start-Sleep -Seconds $ttw
+}
+
