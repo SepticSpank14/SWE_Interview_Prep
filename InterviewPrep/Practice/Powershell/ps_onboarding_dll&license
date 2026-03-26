@@ -1,0 +1,83 @@
+# Scenario:
+# You are automating a pre-launch health check for a game on GeForce NOW. Before the game goes live for users, you need to verify that three specific DLL files exist in the game directory, that a required background service is running, and that a registry value confirms the game is licensed.
+# Write a PowerShell script that:
+
+# Checks that these three DLL files exist in C:\Games\LaunchGame\bin\:
+
+# gamecore.dll
+# drm_client.dll
+# renderer.dll
+
+
+# Checks that a service called GameLicenseService is running
+# Reads a registry value at HKLM:\Software\GeForceNOW\Games\LaunchGame — value name LicenseStatus — and confirms it equals "valid"
+# Logs every check pass or fail with timestamp to C:\Logs\prelaunch_health.log
+# If ALL checks pass — print and log "READY FOR LAUNCH"
+# If ANY check fails — print and log "LAUNCH BLOCKED" and list every failed check in the log
+
+$dll_path = 'c:\Games\LaunchGame\bin\'
+$files_to_check = @('gamecore.dll', 'drm_client.dll', 'render.dll')
+$reg_path = 'HKLM:\Software\GeForceNOW\Games\LaunchGame'
+$dll_Files = Get-ChildItem -Path $dll_path -Recurse -File | Select-Object -ExpandProperty Name
+$license_process = 'GameLicenseService'
+$license_key = 'LicenseStatus'
+$log_file = 'C:\Logs\prelaunch_health.log'
+$logDir = Split-Path $log
+$checks = []
+
+function Get-Timestamp {
+    Get-Date -Format 'yyy-MM-dd HH:mm:ss'
+}
+
+if (-not(Test-Path $log)){
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+# checks for the existence of the 3 dll files in the $dll_path. 
+# $dll_Files is the holder for the search function itself 
+foreach ($file in $files_to_check){
+    if ($dll_Files -contains $file){
+        Add-Content $checks "Pass"
+        Add-Content $log "$(Get-Timestamp) - Success: $file exists in $dll_path."
+    } else {
+        Add-Content $checks "Fail"
+        Add-Content $log "$(Get-Timestamp) - Failure: $file does not exist in $dll_path"
+    }
+}
+
+#checks for GameLicenseService status
+$Run_lics_proc = Get-Process -Name $license_process -ErrorAction SilentlyContinue
+if ($Run_lics_proc.count -gt 0){
+    Add-Content $checks "Pass"
+    Add-Content $log "$(Get-Timestamp) - Success: $license_process is running."
+} else {
+    Add-Content $checks "Fail"
+    Add-Content $log "$(Get-Timestamp) - Failure: $license_process is not running."
+}
+
+# Read HKLM registry for license status
+# well.... check it exists first
+if(Test-Path $reg_path)){
+    $license_status = (Get-ItemProperty -Path $reg_path -Name $license_key -ErrorAction SilentlyContinue)
+    Add-Content $checks "Pass"
+    Add-Content $log "${Get-Timestamp} - Success: $reg_path exists"
+    
+    if ($license_status -eq "valid"){
+        Add-Content $checks "Pass"
+        Add-Content $log "${Get-Timestamp} - Success: $license_status is valid"
+    } else {
+        Add-Content $checks "Fail"
+        Add-Content $log "${Get-Timestamp} - Failure: $license_status is invalid"
+    }
+} else {
+    Add-Content $checks "Fail"
+    Add-Content $log "${Get-Timestamp} - Fail: $reg_path does not exist"
+}
+
+# "Ready to launch" if all pass, "launch blocked" if not
+if all($checks){
+    Add-Content $log "${Get-Timestamp} - READY TO LAUNCH"
+    Write-Host "READY TO LAUNCH"
+} else {
+    $failures = Select-String -Path $log_file -Pattern "Fail"
+    Add-Content $log "${Get-Timestamp} - LAUNCH BLOCKED due to error: $failures"
+}
