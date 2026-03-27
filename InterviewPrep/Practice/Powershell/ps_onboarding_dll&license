@@ -16,68 +16,75 @@
 # If ANY check fails — print and log "LAUNCH BLOCKED" and list every failed check in the log
 
 $dll_path = 'c:\Games\LaunchGame\bin\'
-$files_to_check = @('gamecore.dll', 'drm_client.dll', 'render.dll')
+$files_to_check = @('gamecore.dll', 'drm_client.dll', 'renderer.dll')
 $reg_path = 'HKLM:\Software\GeForceNOW\Games\LaunchGame'
 $dll_Files = Get-ChildItem -Path $dll_path -Recurse -File | Select-Object -ExpandProperty Name
 $license_process = 'GameLicenseService'
 $license_key = 'LicenseStatus'
 $log_file = 'C:\Logs\prelaunch_health.log'
-$logDir = Split-Path $log
-$checks = []
+$logDir = Split-Path $log_file
+$checks = @() # "@()" is an array literal in PowerShell, it initializes an empty 
+# array to hold the results of the checks. 
+# Each check will append either "Pass" or "Fail" to this array,
+$failed_checks = @() # failures explicitly stored in 
+# a separate array for easier logging of failed checks at the end.
 
 function Get-Timestamp {
     Get-Date -Format 'yyy-MM-dd HH:mm:ss'
 }
 
-if (-not(Test-Path $log)){
+if (-not(Test-Path $log_file)){
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
 # checks for the existence of the 3 dll files in the $dll_path. 
 # $dll_Files is the holder for the search function itself 
 foreach ($file in $files_to_check){
     if ($dll_Files -contains $file){
-        Add-Content $checks "Pass"
-        Add-Content $log "$(Get-Timestamp) - Success: $file exists in $dll_path."
+        $checks += "Pass" # "{$var} += appends to an array, "Add-Content $log_file" appends to a file. 
+        Add-Content $log_file "$(Get-Timestamp) - Success: $file exists in $dll_path."
     } else {
-        Add-Content $checks "Fail"
-        Add-Content $log "$(Get-Timestamp) - Failure: $file does not exist in $dll_path"
+        $failed_checks += "Fail: $file does not exist in $dll_path"
+        Add-Content $log_file"$(Get-Timestamp) - Failure: $file does not exist in $dll_path"
     }
 }
 
 #checks for GameLicenseService status
 $Run_lics_proc = Get-Process -Name $license_process -ErrorAction SilentlyContinue
 if ($Run_lics_proc.count -gt 0){
-    Add-Content $checks "Pass"
-    Add-Content $log "$(Get-Timestamp) - Success: $license_process is running."
+    $checks += "Pass"
+    Add-Content $log_file"$(Get-Timestamp) - Success: $license_process is running."
 } else {
-    Add-Content $checks "Fail"
-    Add-Content $log "$(Get-Timestamp) - Failure: $license_process is not running."
+    $failed_checks += "Fail: $license_process is not running"
+    Add-Content $log_file"$(Get-Timestamp) - Failure: $license_process is not running."
 }
 
 # Read HKLM registry for license status
 # well.... check it exists first
-if(Test-Path $reg_path)){
-    $license_status = (Get-ItemProperty -Path $reg_path -Name $license_key -ErrorAction SilentlyContinue)
-    Add-Content $checks "Pass"
-    Add-Content $log "${Get-Timestamp} - Success: $reg_path exists"
+if(Test-Path $reg_path){
+    # checks the value of the registry key LicenseStatus, extract specific value 
+    # with "*.$license_key" and compare to "valid"
+    $license_status = (Get-ItemProperty -Path $reg_path -Name $license_key -ErrorAction SilentlyContinue).$license_key    $checks += "Pass"
+    Add-Content $log_file"$(Get-Timestamp) - Success: $reg_path exists"
     
     if ($license_status -eq "valid"){
-        Add-Content $checks "Pass"
-        Add-Content $log "${Get-Timestamp} - Success: $license_status is valid"
+        $checks += "Pass"
+        Add-Content $log_file"$(Get-Timestamp) - Success: $license_status is valid"
     } else {
-        Add-Content $checks "Fail"
-        Add-Content $log "${Get-Timestamp} - Failure: $license_status is invalid"
+        $failed_checks += "Fail: $license_status is invalid"
+        Add-Content $log_file"$(Get-Timestamp) - Failure: $license_status is invalid"
     }
 } else {
-    Add-Content $checks "Fail"
-    Add-Content $log "${Get-Timestamp} - Fail: $reg_path does not exist"
+    $failed_checks += "Fail: $red_path does not exist"
+    Add-Content $log_file"$(Get-Timestamp) - Fail: $reg_path does not exist"
 }
 
-# "Ready to launch" if all pass, "launch blocked" if not
-if all($checks){
-    Add-Content $log "${Get-Timestamp} - READY TO LAUNCH"
-    Write-Host "READY TO LAUNCH"
+# "Ready to launch" if all pass, "launch blocked" if not. failure check should be 
+# in it's own patterns like so....
+
+if ($checks -notcontains "Fail"){
+    Add-Content $log_file"$(Get-Timestamp) - READY FOR LAUNCH"
+    Write-Output "READY FOR LAUNCH"
 } else {
-    $failures = Select-String -Path $log_file -Pattern "Fail"
-    Add-Content $log "${Get-Timestamp} - LAUNCH BLOCKED due to error: $failures"
+    Add-Content $log_file"$(Get-Timestamp) - LAUNCH BLOCKED"
+    Write-Output "LAUNCH BLOCKED"
 }
