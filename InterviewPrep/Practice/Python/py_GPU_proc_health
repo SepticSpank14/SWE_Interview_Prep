@@ -1,0 +1,43 @@
+# A recurring issue has been reported where critical GPU-related processes sometimes die silently on Windows streaming nodes, and nobody notices until a game session fails.
+# Your job: Write a Python script that monitors a list of expected processes, checks whether each one is running, logs the results, and flags any that are missing.
+import psutil
+import os
+import sys
+from datetime import datetime
+
+log_path = r'C:\Logs\gpu_monitor\monitor.log'
+expected_process = ['nvcontainer.exe', 'nvtelemetry.exe', 'GfeSDKService.exe', 'nvdisplay.container.exe']
+def timestamp():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def log(message, log_path):
+    # this goes inside the log function
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, 'a') as f:
+        f.write(f"{timestamp()} - {message}\n")
+
+def check_processes():
+    try:
+        #get all runningprocesses, and then iterate the expected against them
+        running = {p.info['name'].lower() for p in psutil.process_iter(['name'])}
+    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+        # if we cant get the process list exit with an error
+        log(f"Error enumerating processes: {e}")
+        sys.exit(1)
+
+    flagged = []
+
+    # NOW we iterate against the currently running processes
+    for proc_name in expected_process:
+        if proc_name.lower() in running:
+            log(f"{proc_name} — RUNNING")
+        else:
+            log(f"{proc_name} — MISSING")
+            flagged.append(proc_name)
+
+    if not flagged:
+        log("SUMMARY: All processes nominal.")
+        sys.exit(0)
+    else:
+        log(f"SUMMARY: {len(expected_process) - len(flagged)}/{len(expected_process)} processes running. FLAGGED: {', '.join(flagged)}")
+        sys.exit(1)
