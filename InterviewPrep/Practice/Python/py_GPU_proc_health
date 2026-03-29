@@ -6,15 +6,16 @@ import sys
 from datetime import datetime
 
 log_path = r'C:\Logs\gpu_monitor\monitor.log'
-expected_process = ['nvcontainer.exe', 'nvtelemetry.exe', 'GfeSDKService.exe', 'nvdisplay.container.exe']
+# ALL CAPS is standard module-level convestion for constants, 
+# and this is a list of the expected processes we want to monitor
+EXPECTED_PROCESS = ['nvcontainer.exe', 'nvtelemetry.exe', 'GfeSDKService.exe', 'nvdisplay.container.exe']
 def timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def log(message, log_path):
-    # this goes inside the log function
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, 'a') as f:
-        f.write(f"{timestamp()} - {message}\n")
+def log(message, path=log_path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'a') as f:
+        f.write(f"[{timestamp()}] - {message}\n")
 
 def check_processes():
     try:
@@ -22,22 +23,26 @@ def check_processes():
         running = {p.info['name'].lower() for p in psutil.process_iter(['name'])}
     except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
         # if we cant get the process list exit with an error
-        log(f"Error enumerating processes: {e}")
+        log(f"Error enumerating processes: {e}", log_path)
         sys.exit(1)
 
     flagged = []
 
     # NOW we iterate against the currently running processes
-    for proc_name in expected_process:
+    for proc_name in EXPECTED_PROCESS:
         if proc_name.lower() in running:
-            log(f"{proc_name} — RUNNING")
+            log(f"{proc_name} — RUNNING", log_path)
         else:
-            log(f"{proc_name} — MISSING")
+            log(f"{proc_name} — MISSING", log_path)
             flagged.append(proc_name)
 
     if not flagged:
-        log("SUMMARY: All processes nominal.")
+        log("SUMMARY: All processes nominal.", log_path)
         sys.exit(0)
     else:
-        log(f"SUMMARY: {len(expected_process) - len(flagged)}/{len(expected_process)} processes running. FLAGGED: {', '.join(flagged)}")
+        log(f"SUMMARY: {len(EXPECTED_PROCESS) - len(flagged)}/{len(EXPECTED_PROCESS)} processes running. FLAGGED: {', '.join(flagged)}", log_path)
         sys.exit(1)
+
+#don't forget the main block to call the function when the script is executed
+if __name__ == "__main__":
+    check_processes()
